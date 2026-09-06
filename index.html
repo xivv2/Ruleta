@@ -1030,9 +1030,22 @@ body.present .shell{padding-top:16px;gap:18px;}
   }
   function makeGroups(n) {
     var shuffled = shuffle(state.participants);
-    var groups = [];
-    for (var i = 0; i < n; i++) groups.push([]);
-    shuffled.forEach(function (name, idx) { groups[idx % n].push(name); });
+    var total = shuffled.length;
+    var base = Math.floor(total / n);
+    var remainder = total % n;
+
+    // reparte el sobrante entre grupos elegidos al azar, no siempre los primeros
+    var sizes = [];
+    var i;
+    for (i = 0; i < n; i++) sizes.push(base);
+    var order = shuffle(sizes.map(function (_, idx) { return idx; }));
+    for (i = 0; i < remainder; i++) sizes[order[i]] += 1;
+
+    var groups = [], pos = 0;
+    for (i = 0; i < n; i++) {
+      groups.push(shuffled.slice(pos, pos + sizes[i]));
+      pos += sizes[i];
+    }
     return groups;
   }
   function showGroups() {
