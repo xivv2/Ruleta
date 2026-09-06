@@ -324,6 +324,7 @@ textarea:focus{border-color:var(--coral);outline:none;}
   font-family:var(--arcade);font-size:18px;color:var(--gold);
   min-width:38px;text-align:center;font-variant-numeric:tabular-nums;
 }
+.cupos-num.velnum{font-size:10px;min-width:78px;letter-spacing:.02em;}
 .cupos .abtn{padding:9px 13px;font-size:12px;}
 
 .wins{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
@@ -510,6 +511,13 @@ body.present .shell{padding-top:16px;gap:18px;}
             <button class="abtn" id="cuposUp" type="button" aria-label="Más cupos">+</button>
           </div>
 
+          <div class="cupos step">
+            <span class="cupos-lbl">Velocidad de<br>giro de la ruleta</span>
+            <button class="abtn" id="velDown" type="button" aria-label="Girar más lento">&minus;</button>
+            <span class="cupos-num velnum" id="velNum" aria-live="polite">NORMAL</span>
+            <button class="abtn" id="velUp" type="button" aria-label="Girar más rápido">+</button>
+          </div>
+
           <label class="opt step" id="optRemove">
             <input type="checkbox" id="removeAfter" checked>
             <span class="box" aria-hidden="true"><i></i></span>
@@ -573,6 +581,14 @@ body.present .shell{padding-top:16px;gap:18px;}
   var SEG_FILL = ["#102741", "#2ED9C3", "#FF7A85", "#0E7A78"];
   var SEG_INK  = ["#FFF4EC", "#04080F", "#04080F", "#FFF4EC"];
 
+  var SPEED_LEVELS = [
+    { label: "MUY LENTA",  mult: 1.8  },
+    { label: "LENTA",      mult: 1.35 },
+    { label: "NORMAL",     mult: 1    },
+    { label: "RAPIDA",     mult: 0.72 },
+    { label: "MUY RAPIDA", mult: 0.5  }
+  ];
+
   var EJEMPLO = [
     "Ana Lucía Quispe", "Camila Rojas", "Fernanda Alcántara", "Valeria Núñez",
     "Micaela Torres", "Sofía Bustamante", "Renata Chávez", "Daniela Paredes",
@@ -588,6 +604,7 @@ body.present .shell{padding-top:16px;gap:18px;}
     isExample: true,
     cupos: 1,
     grupos: 2,
+    speedLevel: 2,
     logo: null
   };
 
@@ -611,6 +628,7 @@ body.present .shell{padding-top:16px;gap:18px;}
       if (typeof d.sound === "boolean") state.sound = d.sound;
       if (typeof d.cupos === "number" && d.cupos >= 1) state.cupos = Math.min(10, Math.round(d.cupos));
       if (typeof d.grupos === "number" && d.grupos >= 2) state.grupos = Math.min(50, Math.round(d.grupos));
+      if (typeof d.speedLevel === "number" && d.speedLevel >= 0 && d.speedLevel <= SPEED_LEVELS.length - 1) state.speedLevel = Math.round(d.speedLevel);
       if (typeof d.logo === "string") state.logo = d.logo;
       state.isExample = d.isExample === true;
     } catch (e) { /* dato corrupto: arranca con el ejemplo */ }
@@ -973,7 +991,8 @@ body.present .shell{padding-top:16px;gap:18px;}
     var first = roundResults.length === 0;
     var start = rotation;
     var target = rotation + ((first ? 5 : 3.5) + Math.random() * 3) * TAU + Math.random() * TAU;
-    var dur = reduceMotion ? 700 : (first ? 6400 : 4200);
+    var speedMult = (SPEED_LEVELS[state.speedLevel] || SPEED_LEVELS[2]).mult;
+    var dur = reduceMotion ? 700 : Math.round((first ? 6400 : 4200) * speedMult);
     var t0 = performance.now();
     var lastIdx = winnerIndex();
     beep(180, 0.12, 0.07, "sawtooth");
@@ -1184,6 +1203,11 @@ body.present .shell{padding-top:16px;gap:18px;}
     $("cuposNum").textContent = state.cupos;
     $("cuposDown").disabled = state.cupos <= 1;
     $("cuposUp").disabled = state.cupos >= 10;
+
+    $("velNum").textContent = (SPEED_LEVELS[state.speedLevel] || SPEED_LEVELS[2]).label;
+    $("velDown").disabled = state.speedLevel <= 0;
+    $("velUp").disabled = state.speedLevel >= SPEED_LEVELS.length - 1;
+
     spinBtn.textContent = multi
       ? "★ SORTEAR " + state.cupos + " CUPOS"
       : "★ GIRAR LA RULETA";
@@ -1293,6 +1317,15 @@ body.present .shell{padding-top:16px;gap:18px;}
   }
   $("cuposDown").addEventListener("click", function () { setCupos(state.cupos - 1); });
   $("cuposUp").addEventListener("click", function () { setCupos(state.cupos + 1); });
+
+  function setSpeed(v) {
+    state.speedLevel = Math.max(0, Math.min(SPEED_LEVELS.length - 1, v));
+    save();
+    render();
+    beep(480 + state.speedLevel * 110, 0.06, 0.05);
+  }
+  $("velDown").addEventListener("click", function () { setSpeed(state.speedLevel - 1); });
+  $("velUp").addEventListener("click", function () { setSpeed(state.speedLevel + 1); });
 
   function setGrupos(v) {
     var maxGrupos = Math.max(2, Math.min(50, state.participants.length || 2));
