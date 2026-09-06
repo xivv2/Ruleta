@@ -324,8 +324,56 @@ textarea:focus{border-color:var(--coral);outline:none;}
   font-family:var(--arcade);font-size:18px;color:var(--gold);
   min-width:38px;text-align:center;font-variant-numeric:tabular-nums;
 }
-.cupos-num.velnum{font-size:10px;min-width:78px;letter-spacing:.02em;}
 .cupos .abtn{padding:9px 13px;font-size:12px;}
+
+/* control de velocidad (slider tipo volumen) */
+.speedbox{
+  --notch:6px;
+  background:var(--navy-800);
+  padding:14px;
+  display:flex;flex-direction:column;gap:2px;
+}
+.speed-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.speed-val{
+  font-family:var(--arcade);font-size:14px;color:var(--gold);
+  min-width:52px;text-align:right;font-variant-numeric:tabular-nums;
+}
+.vel-slider{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:16px;margin:10px 0 2px;
+  background:var(--navy-950);
+  outline:none;cursor:pointer;
+}
+.vel-slider::-webkit-slider-runnable-track{
+  height:16px;
+  background:linear-gradient(to right,
+    var(--turq) 0%, var(--turq) var(--fillpct,50%),
+    var(--navy-950) var(--fillpct,50%), var(--navy-950) 100%);
+  box-shadow:inset 0 0 0 2px var(--navy-700);
+}
+.vel-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:18px;height:24px;margin-top:-4px;
+  background:var(--coral);
+  box-shadow:0 3px 0 var(--coral-deep), 0 0 9px rgba(255,122,133,.65);
+  cursor:pointer;
+}
+.vel-slider::-moz-range-track{
+  height:16px;background:var(--navy-950);box-shadow:inset 0 0 0 2px var(--navy-700);
+}
+.vel-slider::-moz-range-progress{height:16px;background:var(--turq);}
+.vel-slider::-moz-range-thumb{
+  width:18px;height:24px;border:0;border-radius:0;
+  background:var(--coral);
+  box-shadow:0 3px 0 var(--coral-deep), 0 0 9px rgba(255,122,133,.65);
+  cursor:pointer;
+}
+.vel-slider:focus-visible::-webkit-slider-thumb,
+.vel-slider:focus-visible::-moz-range-thumb{box-shadow:0 3px 0 var(--coral-deep), 0 0 0 3px var(--gold);}
+.speed-marks{
+  display:flex;justify-content:space-between;
+  font-family:var(--arcade);font-size:7px;color:var(--dim);letter-spacing:.05em;
+}
 
 .wins{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
 .wins li{display:flex;align-items:center;gap:11px;padding:11px 8px;border-bottom:2px solid var(--navy-800);}
@@ -511,11 +559,14 @@ body.present .shell{padding-top:16px;gap:18px;}
             <button class="abtn" id="cuposUp" type="button" aria-label="Más cupos">+</button>
           </div>
 
-          <div class="cupos step">
-            <span class="cupos-lbl">Velocidad de<br>giro de la ruleta</span>
-            <button class="abtn" id="velDown" type="button" aria-label="Girar más lento">&minus;</button>
-            <span class="cupos-num velnum" id="velNum" aria-live="polite">NORMAL</span>
-            <button class="abtn" id="velUp" type="button" aria-label="Girar más rápido">+</button>
+          <div class="speedbox step" id="velBox">
+            <div class="speed-head">
+              <span class="cupos-lbl">Velocidad de giro</span>
+              <span class="speed-val" id="velVal" aria-live="polite">100%</span>
+            </div>
+            <input type="range" class="vel-slider" id="velRange" min="50" max="200" step="5" value="100"
+              aria-label="Velocidad de giro de la ruleta">
+            <div class="speed-marks"><span>LENTA</span><span>NORMAL</span><span>RAPIDA</span></div>
           </div>
 
           <label class="opt step" id="optRemove">
@@ -581,13 +632,7 @@ body.present .shell{padding-top:16px;gap:18px;}
   var SEG_FILL = ["#102741", "#2ED9C3", "#FF7A85", "#0E7A78"];
   var SEG_INK  = ["#FFF4EC", "#04080F", "#04080F", "#FFF4EC"];
 
-  var SPEED_LEVELS = [
-    { label: "MUY LENTA",  mult: 1.8  },
-    { label: "LENTA",      mult: 1.35 },
-    { label: "NORMAL",     mult: 1    },
-    { label: "RAPIDA",     mult: 0.72 },
-    { label: "MUY RAPIDA", mult: 0.5  }
-  ];
+  var SPEED_MIN = 50, SPEED_MAX = 200, SPEED_DEFAULT = 100;
 
   var EJEMPLO = [
     "Ana Lucía Quispe", "Camila Rojas", "Fernanda Alcántara", "Valeria Núñez",
@@ -604,7 +649,7 @@ body.present .shell{padding-top:16px;gap:18px;}
     isExample: true,
     cupos: 1,
     grupos: 2,
-    speedLevel: 2,
+    speedPct: SPEED_DEFAULT,
     logo: null
   };
 
@@ -628,7 +673,7 @@ body.present .shell{padding-top:16px;gap:18px;}
       if (typeof d.sound === "boolean") state.sound = d.sound;
       if (typeof d.cupos === "number" && d.cupos >= 1) state.cupos = Math.min(10, Math.round(d.cupos));
       if (typeof d.grupos === "number" && d.grupos >= 2) state.grupos = Math.min(50, Math.round(d.grupos));
-      if (typeof d.speedLevel === "number" && d.speedLevel >= 0 && d.speedLevel <= SPEED_LEVELS.length - 1) state.speedLevel = Math.round(d.speedLevel);
+      if (typeof d.speedPct === "number" && d.speedPct >= SPEED_MIN && d.speedPct <= SPEED_MAX) state.speedPct = d.speedPct;
       if (typeof d.logo === "string") state.logo = d.logo;
       state.isExample = d.isExample === true;
     } catch (e) { /* dato corrupto: arranca con el ejemplo */ }
@@ -666,6 +711,7 @@ body.present .shell{padding-top:16px;gap:18px;}
   var countPart = $("countPart"), countWin = $("countWin"), statusLine = $("statusLine");
   var soundBtn = $("soundBtn"), presentBtn = $("presentBtn"), removeAfterEl = $("removeAfter");
   var groupsBtn = $("groupsBtn");
+  var velRange = $("velRange");
   var exportBox = $("exportBox"), exportLabel = $("exportLabel");
   var logoInner = $("logoInner"), flashEl = $("flash");
 
@@ -991,8 +1037,9 @@ body.present .shell{padding-top:16px;gap:18px;}
     var first = roundResults.length === 0;
     var start = rotation;
     var target = rotation + ((first ? 5 : 3.5) + Math.random() * 3) * TAU + Math.random() * TAU;
-    var speedMult = (SPEED_LEVELS[state.speedLevel] || SPEED_LEVELS[2]).mult;
-    var dur = reduceMotion ? 700 : Math.round((first ? 6400 : 4200) * speedMult);
+    var speedMult = SPEED_DEFAULT / (state.speedPct || SPEED_DEFAULT);
+    var baseDur = reduceMotion ? 700 : (first ? 6400 : 4200);
+    var dur = Math.max(250, Math.round(baseDur * speedMult));
     var t0 = performance.now();
     var lastIdx = winnerIndex();
     beep(180, 0.12, 0.07, "sawtooth");
@@ -1204,9 +1251,10 @@ body.present .shell{padding-top:16px;gap:18px;}
     $("cuposDown").disabled = state.cupos <= 1;
     $("cuposUp").disabled = state.cupos >= 10;
 
-    $("velNum").textContent = (SPEED_LEVELS[state.speedLevel] || SPEED_LEVELS[2]).label;
-    $("velDown").disabled = state.speedLevel <= 0;
-    $("velUp").disabled = state.speedLevel >= SPEED_LEVELS.length - 1;
+    velRange.value = state.speedPct;
+    $("velVal").textContent = state.speedPct + "%";
+    velRange.style.setProperty("--fillpct",
+      Math.round(((state.speedPct - SPEED_MIN) / (SPEED_MAX - SPEED_MIN)) * 100) + "%");
 
     spinBtn.textContent = multi
       ? "★ SORTEAR " + state.cupos + " CUPOS"
@@ -1318,14 +1366,16 @@ body.present .shell{padding-top:16px;gap:18px;}
   $("cuposDown").addEventListener("click", function () { setCupos(state.cupos - 1); });
   $("cuposUp").addEventListener("click", function () { setCupos(state.cupos + 1); });
 
-  function setSpeed(v) {
-    state.speedLevel = Math.max(0, Math.min(SPEED_LEVELS.length - 1, v));
+  velRange.addEventListener("input", function () {
+    state.speedPct = Math.max(SPEED_MIN, Math.min(SPEED_MAX, parseInt(velRange.value, 10) || SPEED_DEFAULT));
+    $("velVal").textContent = state.speedPct + "%";
+    velRange.style.setProperty("--fillpct",
+      Math.round(((state.speedPct - SPEED_MIN) / (SPEED_MAX - SPEED_MIN)) * 100) + "%");
     save();
-    render();
-    beep(480 + state.speedLevel * 110, 0.06, 0.05);
-  }
-  $("velDown").addEventListener("click", function () { setSpeed(state.speedLevel - 1); });
-  $("velUp").addEventListener("click", function () { setSpeed(state.speedLevel + 1); });
+  });
+  velRange.addEventListener("change", function () {
+    beep(420 + state.speedPct * 2.2, 0.05, 0.04);
+  });
 
   function setGrupos(v) {
     var maxGrupos = Math.max(2, Math.min(50, state.participants.length || 2));
