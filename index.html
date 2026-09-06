@@ -387,6 +387,7 @@ textarea:focus{border-color:var(--coral);outline:none;}
 }
 .board li.filled{background:var(--navy-700);box-shadow:inset 5px 0 0 var(--coral);animation:pop .26s steps(3,end) both;}
 .board .pending{color:var(--dim);letter-spacing:.3em;}
+.board .bnm.gnm{font-size:clamp(11px,1.6vw,20px);line-height:1.7;text-transform:uppercase;}
 
 .waithint{
   margin:30px 0 0;
@@ -504,6 +505,15 @@ body.present .shell{padding-top:16px;gap:18px;}
               <span class="lockmsg" id="lockMsg" hidden>OBLIGATORIO CON MAS DE UN CUPO</span>
             </span>
           </label>
+
+          <p class="legend" style="margin-top:6px;border-top:2px solid var(--navy-800);padding-top:14px;">ARMAR GRUPOS ALEATORIOS</p>
+          <div class="cupos step" id="gruposBox">
+            <span class="cupos-lbl">Cantidad de<br>grupos a formar</span>
+            <button class="abtn" id="gruposDown" type="button" aria-label="Menos grupos">&minus;</button>
+            <span class="cupos-num" id="gruposNum" aria-live="polite">2</span>
+            <button class="abtn" id="gruposUp" type="button" aria-label="Más grupos">+</button>
+          </div>
+          <button class="abtn sm" id="groupsBtn" style="width:100%">ARMAR GRUPOS</button>
         </div>
 
         <div class="pane" id="paneGanadoras" role="tabpanel" aria-labelledby="tabWin" hidden>
@@ -531,6 +541,7 @@ body.present .shell{padding-top:16px;gap:18px;}
       <p class="won" id="revealKicker">&iexcl;GANADORA!</p>
       <div id="revealSingle"><p class="who" id="revealName">&mdash;</p></div>
       <div id="revealBoard" hidden><ul class="board" id="boardList"></ul></div>
+      <div id="revealGroups" hidden><ul class="board" id="groupsList"></ul></div>
       <p class="waithint" id="waitHint" hidden>SIGUIENTE CUPO EN 3, 2, 1&hellip; &nbsp; [ ESPACIO ] PARA ADELANTAR</p>
       <div class="acts" id="acts">
         <button class="abtn cta" id="againBtn">SIGUIENTE SORTEO</button>
@@ -563,6 +574,7 @@ body.present .shell{padding-top:16px;gap:18px;}
     sound: true,
     isExample: true,
     cupos: 1,
+    grupos: 2,
     logo: null
   };
 
@@ -585,6 +597,7 @@ body.present .shell{padding-top:16px;gap:18px;}
       if (typeof d.removeAfter === "boolean") state.removeAfter = d.removeAfter;
       if (typeof d.sound === "boolean") state.sound = d.sound;
       if (typeof d.cupos === "number" && d.cupos >= 1) state.cupos = Math.min(10, Math.round(d.cupos));
+      if (typeof d.grupos === "number" && d.grupos >= 2) state.grupos = Math.min(50, Math.round(d.grupos));
       if (typeof d.logo === "string") state.logo = d.logo;
       state.isExample = d.isExample === true;
     } catch (e) { /* dato corrupto: arranca con el ejemplo */ }
@@ -599,6 +612,7 @@ body.present .shell{padding-top:16px;gap:18px;}
   var winnersList = $("winnersList"), winnersEmpty = $("winnersEmpty");
   var countPart = $("countPart"), countWin = $("countWin"), statusLine = $("statusLine");
   var soundBtn = $("soundBtn"), presentBtn = $("presentBtn"), removeAfterEl = $("removeAfter");
+  var groupsBtn = $("groupsBtn");
   var exportBox = $("exportBox"), exportLabel = $("exportLabel");
   var logoInner = $("logoInner"), flashEl = $("flash");
 
@@ -966,6 +980,8 @@ body.present .shell{padding-top:16px;gap:18px;}
     var pending = roundResults.length < roundTarget;
     $("revealSingle").hidden = multi;
     $("revealBoard").hidden = !multi;
+    $("revealGroups").hidden = true;
+    $("againBtn").hidden = false;
 
     if (multi) {
       revealKicker.textContent = pending
@@ -1001,6 +1017,57 @@ body.present .shell{padding-top:16px;gap:18px;}
     $("acts").hidden = pending;
     $("waitHint").hidden = !pending;
     overlay.hidden = false;
+  }
+
+  /* ---------- grupos aleatorios ---------- */
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function makeGroups(n) {
+    var shuffled = shuffle(state.participants);
+    var groups = [];
+    for (var i = 0; i < n; i++) groups.push([]);
+    shuffled.forEach(function (name, idx) { groups[idx % n].push(name); });
+    return groups;
+  }
+  function showGroups() {
+    if (state.participants.length < 2) return;
+    var maxGrupos = Math.max(2, Math.min(50, state.participants.length));
+    var n = Math.max(2, Math.min(state.grupos, maxGrupos));
+    var groups = makeGroups(n);
+
+    $("revealSingle").hidden = true;
+    $("revealBoard").hidden = true;
+    $("revealGroups").hidden = false;
+    revealKicker.textContent = n + " GRUPOS ALEATORIOS";
+
+    var ul = $("groupsList");
+    ul.innerHTML = "";
+    groups.forEach(function (g, i) {
+      var li = document.createElement("li");
+      var s = document.createElement("span"); s.className = "slot"; s.textContent = "GRUPO " + (i + 1);
+      var nm = document.createElement("span"); nm.className = "bnm gnm"; nm.textContent = g.join(", ");
+      li.appendChild(s); li.appendChild(nm);
+      ul.appendChild(li);
+    });
+
+    $("acts").hidden = false;
+    $("waitHint").hidden = true;
+    $("againBtn").hidden = true;
+    overlay.hidden = false;
+    if (!reduceMotion) {
+      flashEl.classList.remove("go");
+      void flashEl.offsetWidth;
+      flashEl.classList.add("go");
+    }
+    beep(880, 0.1, 0.06);
+    beep(1046, 0.1, 0.06);
+    $("closeBtn").focus();
   }
 
   function completeRound() {
@@ -1053,6 +1120,14 @@ body.present .shell{padding-top:16px;gap:18px;}
     spinBtn.textContent = multi
       ? "★ SORTEAR " + state.cupos + " CUPOS"
       : "★ GIRAR LA RULETA";
+
+    var maxGrupos = Math.max(2, Math.min(50, state.participants.length || 2));
+    if (state.grupos > maxGrupos) state.grupos = maxGrupos;
+    if (state.grupos < 2) state.grupos = 2;
+    $("gruposNum").textContent = state.grupos;
+    $("gruposDown").disabled = state.grupos <= 2;
+    $("gruposUp").disabled = state.grupos >= maxGrupos;
+    groupsBtn.disabled = state.participants.length < 2;
 
     soundBtn.textContent = state.sound ? "SONIDO: ON" : "SONIDO: OFF";
     soundBtn.setAttribute("aria-pressed", state.sound ? "true" : "false");
@@ -1151,6 +1226,21 @@ body.present .shell{padding-top:16px;gap:18px;}
   }
   $("cuposDown").addEventListener("click", function () { setCupos(state.cupos - 1); });
   $("cuposUp").addEventListener("click", function () { setCupos(state.cupos + 1); });
+
+  function setGrupos(v) {
+    var maxGrupos = Math.max(2, Math.min(50, state.participants.length || 2));
+    state.grupos = Math.max(2, Math.min(maxGrupos, v));
+    save();
+    render();
+    beep(520 + state.grupos * 40, 0.06, 0.05);
+  }
+  $("gruposDown").addEventListener("click", function () { setGrupos(state.grupos - 1); });
+  $("gruposUp").addEventListener("click", function () { setGrupos(state.grupos + 1); });
+  groupsBtn.addEventListener("click", function () {
+    if (inRound || spinning) return;
+    showGroups();
+  });
+
   $("editBtn").addEventListener("click", toggleEdit);
 
   var typeTimer = null;
