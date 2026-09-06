@@ -55,7 +55,7 @@ body{
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;}
 
 /* ---------- silueta de píxel (esquinas escalonadas) ---------- */
-.step{
+.step,.board li{
   clip-path:polygon(
     var(--notch) 0, calc(100% - var(--notch)) 0,
     calc(100% - var(--notch)) var(--notch), 100% var(--notch),
@@ -298,6 +298,22 @@ textarea:focus{border-color:var(--coral);outline:none;}
 .opt input:focus-visible + .box{box-shadow:inset 0 0 0 3px var(--gold);}
 .opt .txt{font-family:var(--arcade);font-size:9px;line-height:1.8;color:var(--cream);letter-spacing:.05em;}
 .opt .txt small{display:block;margin-top:8px;font-family:var(--pixel);font-size:14px;letter-spacing:0;color:var(--dim);line-height:1.4;text-transform:none;}
+.opt.locked{opacity:.72;cursor:default;}
+.lockmsg{display:block;margin-top:6px;font-family:var(--arcade);font-size:8px;line-height:1.8;color:var(--gold);}
+
+/* selector de cupos */
+.cupos{
+  --notch:6px;
+  display:flex;align-items:center;gap:12px;
+  background:var(--navy-800);
+  padding:12px 14px;
+}
+.cupos-lbl{font-family:var(--arcade);font-size:9px;color:var(--turq);letter-spacing:.06em;flex:1;line-height:1.7;}
+.cupos-num{
+  font-family:var(--arcade);font-size:18px;color:var(--gold);
+  min-width:38px;text-align:center;font-variant-numeric:tabular-nums;
+}
+.cupos .abtn{padding:9px 13px;font-size:12px;}
 
 .wins{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
 .wins li{display:flex;align-items:center;gap:11px;padding:11px 8px;border-bottom:2px solid var(--navy-800);}
@@ -352,6 +368,32 @@ textarea:focus{border-color:var(--coral);outline:none;}
 }
 @keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
 .reveal .acts{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:46px;}
+.reveal .acts[hidden]{display:none;}
+
+/* tablero de cupos */
+.board{list-style:none;margin:30px auto 0;padding:0;display:flex;flex-direction:column;gap:11px;max-width:960px;}
+.board li{
+  display:flex;align-items:center;gap:clamp(12px,2vw,24px);
+  background:var(--navy-800);
+  padding:clamp(11px,1.6vw,17px) clamp(13px,2vw,22px);
+  text-align:left;
+}
+.board .slot{font-family:var(--arcade);font-size:clamp(8px,1.05vw,12px);color:var(--turq);min-width:78px;letter-spacing:.06em;}
+.board .bnm{
+  font-family:var(--arcade);
+  font-size:clamp(13px,2.9vw,34px);
+  line-height:1.45;color:var(--cream);
+  overflow-wrap:anywhere;flex:1;
+}
+.board li.filled{background:var(--navy-700);box-shadow:inset 5px 0 0 var(--coral);animation:pop .26s steps(3,end) both;}
+.board .pending{color:var(--dim);letter-spacing:.3em;}
+
+.waithint{
+  margin:30px 0 0;
+  font-family:var(--arcade);font-size:9px;line-height:2;color:var(--gold);
+  animation:pulse .8s steps(2,jump-none) infinite;
+}
+.waithint[hidden]{display:none;}
 
 /* ---------- modo proyección ---------- */
 body.present .panel,
@@ -447,11 +489,19 @@ body.present .shell{padding-top:16px;gap:18px;}
           <input type="file" id="fileInput" accept=".txt,.csv,text/plain,text/csv" hidden>
           <input type="file" id="logoInput" accept="image/*" hidden>
 
-          <label class="opt step">
+          <div class="cupos step">
+            <span class="cupos-lbl">Cantidad de<br>premios a sortear</span>
+            <button class="abtn" id="cuposDown" type="button" aria-label="Menos cupos">&minus;</button>
+            <span class="cupos-num" id="cuposNum" aria-live="polite">1</span>
+            <button class="abtn" id="cuposUp" type="button" aria-label="Más cupos">+</button>
+          </div>
+
+          <label class="opt step" id="optRemove">
             <input type="checkbox" id="removeAfter" checked>
             <span class="box" aria-hidden="true"><i></i></span>
             <span class="txt">RETIRAR GANADORA
               <small>Cada nombre sale una vez. Ideal para varios premios seguidos.</small>
+              <span class="lockmsg" id="lockMsg" hidden>OBLIGATORIO CON MAS DE UN CUPO</span>
             </span>
           </label>
         </div>
@@ -479,8 +529,10 @@ body.present .shell{padding-top:16px;gap:18px;}
     <div class="reveal-in">
       <p class="stars">&#9733; &#9733; &#9733;</p>
       <p class="won" id="revealKicker">&iexcl;GANADORA!</p>
-      <p class="who" id="revealName">&mdash;</p>
-      <div class="acts">
+      <div id="revealSingle"><p class="who" id="revealName">&mdash;</p></div>
+      <div id="revealBoard" hidden><ul class="board" id="boardList"></ul></div>
+      <p class="waithint" id="waitHint" hidden>SIGUIENTE CUPO EN 3, 2, 1&hellip; &nbsp; [ ESPACIO ] PARA ADELANTAR</p>
+      <div class="acts" id="acts">
         <button class="abtn cta" id="againBtn">SIGUIENTE SORTEO</button>
         <button class="abtn" id="closeBtn">CERRAR</button>
       </div>
@@ -510,6 +562,7 @@ body.present .shell{padding-top:16px;gap:18px;}
     removeAfter: true,
     sound: true,
     isExample: true,
+    cupos: 1,
     logo: null
   };
 
@@ -531,6 +584,7 @@ body.present .shell{padding-top:16px;gap:18px;}
       if (Array.isArray(d.historial)) state.historial = d.historial;
       if (typeof d.removeAfter === "boolean") state.removeAfter = d.removeAfter;
       if (typeof d.sound === "boolean") state.sound = d.sound;
+      if (typeof d.cupos === "number" && d.cupos >= 1) state.cupos = Math.min(10, Math.round(d.cupos));
       if (typeof d.logo === "string") state.logo = d.logo;
       state.isExample = d.isExample === true;
     } catch (e) { /* dato corrupto: arranca con el ejemplo */ }
@@ -813,18 +867,45 @@ body.present .shell{padding-top:16px;gap:18px;}
     else { confRAF = null; cctx.clearRect(0, 0, cw, ch); }
   }
 
-  /* ---------- giro ---------- */
+  /* ---------- rondas de sorteo ---------- */
+  var roundTarget = 1, roundResults = [], roundTimer = null, inRound = false;
+
+  function effectiveCupos() {
+    return Math.max(1, Math.min(state.cupos, state.participants.length || 1));
+  }
+
+  // punto de entrada: botón, teclado o "siguiente sorteo"
   function spin() {
+    if (spinning) return;
+    if (inRound) { advanceNow(); return; }
+    if (state.participants.length === 0) return;
+    roundTarget = effectiveCupos();
+    roundResults = [];
+    inRound = true;
+    runSpin();
+  }
+
+  function advanceNow() {
+    clearTimeout(roundTimer);
+    roundTimer = null;
+    if (!inRound || spinning) return;
+    if (roundResults.length >= roundTarget) return;
+    overlay.hidden = true;
+    runSpin();
+  }
+
+  function runSpin() {
     var n = state.participants.length;
-    if (spinning || n === 0) return;
+    if (n === 0) { completeRound(); return; }
     if (editing) toggleEdit();
     spinning = true;
     spinBtn.disabled = true;
     overlay.hidden = true;
 
+    var first = roundResults.length === 0;
     var start = rotation;
-    var target = rotation + (5 + Math.random() * 3) * TAU + Math.random() * TAU;
-    var dur = reduceMotion ? 700 : 6400;
+    var target = rotation + ((first ? 5 : 3.5) + Math.random() * 3) * TAU + Math.random() * TAU;
+    var dur = reduceMotion ? 700 : (first ? 6400 : 4200);
     var t0 = performance.now();
     var lastIdx = winnerIndex();
     beep(180, 0.12, 0.07, "sawtooth");
@@ -853,13 +934,16 @@ body.present .shell{padding-top:16px;gap:18px;}
   }
 
   function finish() {
-    spinBtn.disabled = state.participants.length === 0;
     var idx = winnerIndex();
-    if (idx < 0) return;
+    if (idx < 0) { completeRound(); return; }
     var name = state.participants[idx];
+    var multi = roundTarget > 1;
 
     state.historial.unshift({ name: name, ts: Date.now() });
-    if (state.removeAfter) {
+    roundResults.push(name);
+
+    // con varios cupos, la ganadora sale siempre de la ruleta: nadie repite dentro de la ronda
+    if (state.removeAfter || multi) {
       state.participants.splice(idx, 1);
       state.removed.push(name);
       rotation = 0;
@@ -867,12 +951,66 @@ body.present .shell{padding-top:16px;gap:18px;}
     state.isExample = false;
     save();
     render();
+    showBoard();
 
-    revealKicker.textContent = state.historial.length === 1
-      ? "¡GANADORA!"
-      : "¡GANADORA #" + state.historial.length + "!";
-    revealName.textContent = name.toUpperCase();
+    if (roundResults.length >= roundTarget || state.participants.length === 0) {
+      completeRound();
+    } else {
+      beep(760 + roundResults.length * 130, 0.14, 0.07);
+      roundTimer = setTimeout(advanceNow, reduceMotion ? 900 : 2400);
+    }
+  }
+
+  function showBoard() {
+    var multi = roundTarget > 1;
+    var pending = roundResults.length < roundTarget;
+    $("revealSingle").hidden = multi;
+    $("revealBoard").hidden = !multi;
+
+    if (multi) {
+      revealKicker.textContent = pending
+        ? "CUPO " + roundResults.length + " DE " + roundTarget
+        : "¡" + roundTarget + " GANADORAS!";
+      var ul = $("boardList");
+      ul.innerHTML = "";
+      for (var i = 0; i < roundTarget; i++) {
+        var li = document.createElement("li");
+        var s = document.createElement("span");
+        s.className = "slot";
+        s.textContent = "CUPO " + (i + 1);
+        var nm = document.createElement("span");
+        nm.className = "bnm";
+        if (roundResults[i]) {
+          nm.textContent = roundResults[i].toUpperCase();
+          li.className = "filled";
+        } else {
+          nm.textContent = "· · ·";
+          nm.className = "bnm pending";
+        }
+        li.appendChild(s);
+        li.appendChild(nm);
+        ul.appendChild(li);
+      }
+    } else {
+      revealKicker.textContent = state.historial.length === 1
+        ? "¡GANADORA!"
+        : "¡GANADORA #" + state.historial.length + "!";
+      revealName.textContent = (roundResults[0] || "").toUpperCase();
+    }
+
+    $("acts").hidden = pending;
+    $("waitHint").hidden = !pending;
     overlay.hidden = false;
+  }
+
+  function completeRound() {
+    inRound = false;
+    clearTimeout(roundTimer);
+    roundTimer = null;
+    spinning = false;
+    spinBtn.disabled = state.participants.length === 0;
+    $("acts").hidden = false;
+    $("waitHint").hidden = true;
 
     if (!reduceMotion) {
       flashEl.classList.remove("go");
@@ -903,10 +1041,22 @@ body.present .shell{padding-top:16px;gap:18px;}
   function render() {
     tickNumber(countPart, state.participants.length);
     tickNumber(countWin, state.historial.length);
-    removeAfterEl.checked = state.removeAfter;
+    var multi = state.cupos > 1;
+    removeAfterEl.checked = multi ? true : state.removeAfter;
+    removeAfterEl.disabled = multi;
+    $("optRemove").classList.toggle("locked", multi);
+    $("lockMsg").hidden = !multi;
+
+    $("cuposNum").textContent = state.cupos;
+    $("cuposDown").disabled = state.cupos <= 1;
+    $("cuposUp").disabled = state.cupos >= 10;
+    spinBtn.textContent = multi
+      ? "★ SORTEAR " + state.cupos + " CUPOS"
+      : "★ GIRAR LA RULETA";
+
     soundBtn.textContent = state.sound ? "SONIDO: ON" : "SONIDO: OFF";
     soundBtn.setAttribute("aria-pressed", state.sound ? "true" : "false");
-    spinBtn.disabled = state.participants.length === 0 || spinning;
+    spinBtn.disabled = state.participants.length === 0 || spinning || inRound;
 
     if (state.participants.length === 0) {
       statusLine.textContent = state.historial.length ? "SORTEO TERMINADO" : "SIN PARTICIPANTES";
@@ -986,6 +1136,21 @@ body.present .shell{padding-top:16px;gap:18px;}
   spinBtn.addEventListener("click", spin);
   $("againBtn").addEventListener("click", function () { overlay.hidden = true; spin(); });
   $("closeBtn").addEventListener("click", function () { overlay.hidden = true; spinBtn.focus(); });
+
+  // adelantar la espera entre cupos tocando la pantalla
+  overlay.addEventListener("click", function (e) {
+    if (e.target.closest("button")) return;
+    if (inRound && roundResults.length < roundTarget) advanceNow();
+  });
+
+  function setCupos(v) {
+    state.cupos = Math.max(1, Math.min(10, v));
+    save();
+    render();
+    beep(520 + state.cupos * 60, 0.06, 0.05);
+  }
+  $("cuposDown").addEventListener("click", function () { setCupos(state.cupos - 1); });
+  $("cuposUp").addEventListener("click", function () { setCupos(state.cupos + 1); });
   $("editBtn").addEventListener("click", toggleEdit);
 
   var typeTimer = null;
@@ -1133,12 +1298,19 @@ body.present .shell{padding-top:16px;gap:18px;}
     if (tag === "TEXTAREA" || tag === "INPUT") return;
     if (e.code === "Space" || e.key === "Enter") {
       e.preventDefault();
+      if (inRound) { advanceNow(); return; }
       overlay.hidden = true;
       spin();
     } else if (e.key === "p" || e.key === "P") {
       togglePresent();
     } else if (e.key === "Escape") {
-      if (!overlay.hidden) overlay.hidden = true;
+      if (inRound) {                       // cancelar la ronda a medias
+        clearTimeout(roundTimer);
+        roundTimer = null;
+        inRound = false;
+        overlay.hidden = true;
+        spinBtn.disabled = state.participants.length === 0;
+      } else if (!overlay.hidden) overlay.hidden = true;
       else if (document.body.classList.contains("present")) togglePresent();
     }
   });
