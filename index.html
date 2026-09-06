@@ -685,18 +685,37 @@ body.present .shell{padding-top:16px;gap:18px;}
   }
 
   function drawRing(cx, cy) {
-    var blocks = 48;
-    var rr = R + Math.round(IW * 0.026);
-    var b = Math.max(4, Math.round(IW * 0.026));
-    for (var i = 0; i < blocks; i++) {
-      var a = (i / blocks) * TAU - Math.PI / 2;
-      var x = Math.round(cx + Math.cos(a) * rr - b / 2);
-      var y = Math.round(cy + Math.sin(a) * rr - b / 2);
+    var bulbs = 36;
+    var rr = R + Math.round(IW * 0.035);
+    var br = Math.max(3, Math.round(IW * 0.02));
+    for (var i = 0; i < bulbs; i++) {
+      var a = (i / bulbs) * TAU - Math.PI / 2;
+      var x = Math.round(cx + Math.cos(a) * rr);
+      var y = Math.round(cy + Math.sin(a) * rr);
       var lit = ((i + chase) % 3 === 0);
+      var glow = lit ? (spinning ? "#FFD166" : "#FF7A85") : "#FFF4EC";
+
+      // halo de luz cuando el foco está encendido
+      if (lit) {
+        wctx.globalAlpha = 0.32;
+        wctx.fillStyle = glow;
+        wctx.beginPath(); wctx.arc(x, y, br * 1.8, 0, TAU); wctx.fill();
+        wctx.globalAlpha = 1;
+      }
+
+      // casquillo (base oscura del foco)
       wctx.fillStyle = "#04080F";
-      wctx.fillRect(x - 1, y - 1, b + 2, b + 2);
-      wctx.fillStyle = lit ? (spinning ? "#FFD166" : "#FF7A85") : "#FFF4EC";
-      wctx.fillRect(x, y, b, b);
+      wctx.beginPath(); wctx.arc(x, y, br + 2, 0, TAU); wctx.fill();
+
+      // bombilla
+      wctx.fillStyle = glow;
+      wctx.beginPath(); wctx.arc(x, y, br, 0, TAU); wctx.fill();
+
+      // brillo de vidrio
+      wctx.fillStyle = "rgba(255,255,255,.55)";
+      wctx.beginPath();
+      wctx.arc(x - br * 0.32, y - br * 0.32, Math.max(1, br * 0.3), 0, TAU);
+      wctx.fill();
     }
   }
 
